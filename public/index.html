@@ -1,17 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fa" dir="rtl">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Buses live location</title>
-
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-
-    <!-- Make sure you put this AFTER Leaflet's CSS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ردیابی اتوبوس های شهری</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 
     <style>
         html,
@@ -20,17 +17,154 @@
             width: 100%;
             margin: 0;
             padding: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
         #map {
             height: 100%;
             width: 100%;
         }
+
+        .bus-marker {
+            background-color: #3b82f6;
+            border-radius: 50%;
+            border: 2px solid white;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-weight: bold;
+            font-size: 10px;
+        }
+
+        .sidebar {
+            position: absolute;
+            right: 0;
+            top: 0;
+            height: 100%;
+            z-index: 1000;
+            box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+            width: 350px;
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(100%);
+        }
+
+        .bus-item:hover {
+            background-color: #f3f4f6;
+        }
+
+        .bus-item.active {
+            background-color: #e0e7ff;
+            border-left: 4px solid #3b82f6;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 300px;
+            }
+        }
+
+        .map-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .sidebar-toggle {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            z-index: 1001;
+            background: white;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+            transition: right 0.3s ease-in-out;
+        }
+
+        .sidebar-toggle.collapsed {
+            right: 10px;
+        }
+
+        .sidebar-toggle.expanded {
+            right: 360px;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar-toggle.expanded {
+                right: 310px;
+            }
+        }
+
+        .leaflet-popup-content {
+            text-align: right;
+            direction: rtl;
+        }
+
+        input[type="text"] {
+            text-align: right;
+        }
+
+        .bus-item i.fa-chevron-left,
+        .sidebar-toggle i.fa-chevron-left {
+            transform: rotate(180deg);
+        }
+
+        .sidebar-toggle.collapsed i.fa-chevron-right {
+            transform: rotate(180deg);
+        }
     </style>
 </head>
 
-<body>
-    <div id="map"></div>
+<body class="flex flex-col md:flex-row">
+    <div class="map-container">
+        <div id="map"></div>
+
+        <div id="sidebarToggle" class="sidebar-toggle expanded">
+            <i class="fas fa-chevron-right"></i>
+        </div>
+    </div>
+
+    <div id="sidebar" class="sidebar bg-white flex flex-col">
+        <div class="p-4 bg-blue-600 text-white flex justify-between items-center">
+            <h2 class="text-xl font-bold">سیستم ردیابی اتوبوس</h2>
+            <button id="closeSidebar" class="text-white hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div class="p-3 border-b">
+            <div class="relative">
+                <input type="text" placeholder="جستجوی اتوبوس..."
+                    class="w-full p-2 pr-8 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto">
+            <div id="busList" class="divide-y divide-gray-200">
+                <div class="text-center py-10 text-gray-500">
+                    <i class="fas fa-bus text-3xl mb-2"></i>
+                    <p>در حال بارگذاری اطلاعات اتوبوس ها...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-3 border-t text-center text-xs text-gray-500">
+            <p>آخرین بروزرسانی: <span id="lastUpdated">همین حالا</span></p>
+        </div>
+    </div>
 
     <script src="./assets/js/app.js"></script>
 </body>

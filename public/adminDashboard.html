@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bus Tracking Admin Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4F46E5',
+                        secondary: '#10B981',
+                        dark: '#1F2937',
+                        light: '#F3F4F6'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .map-container {
+            height: 400px;
+            width: 100%;
+            background-color: #e5e7eb;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .bus-marker {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background-color: #4F46E5;
+            border-radius: 50%;
+            border: 2px solid white;
+            transform: translate(-50%, -50%);
+        }
+
+        .bus-marker::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 8px solid #4F46E5;
+        }
+
+        .sidebar {
+            transition: all 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: -100%;
+                top: 0;
+                z-index: 50;
+                height: 100vh;
+            }
+
+            .sidebar.active {
+                left: 0;
+            }
+
+            .overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 40;
+                display: none;
+            }
+
+            .overlay.active {
+                display: block;
+            }
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100">
+    <!-- Overlay for mobile sidebar -->
+    <div class="overlay"></div>
+
+    <!-- Sidebar -->
+    <div class="sidebar bg-white w-64 fixed h-full shadow-lg">
+        <div class="p-4 border-b border-gray-200">
+            <h1 class="text-xl font-bold text-primary">BusTrack Admin</h1>
+        </div>
+        <nav class="p-4">
+            <div class="mb-6">
+                <p class="text-xs uppercase text-gray-500 font-semibold mb-2">Main</p>
+                <a href="#" class="flex items-center py-2 px-3 rounded-lg bg-primary text-white mb-1">
+                    <i class="fas fa-tachometer-alt mr-3"></i>
+                    Dashboard
+                </a>
+                <a href="#map-section"
+                    class="flex items-center py-2 px-3 rounded-lg text-gray-700 hover:bg-gray-100 mb-1">
+                    <i class="fas fa-map-marked-alt mr-3"></i>
+                    Live Map
+                </a>
+            </div>
+
+            <div class="mb-6">
+                <p class="text-xs uppercase text-gray-500 font-semibold mb-2">Bus Management</p>
+                <a href="#bus-list" class="flex items-center py-2 px-3 rounded-lg text-gray-700 hover:bg-gray-100 mb-1">
+                    <i class="fas fa-bus mr-3"></i>
+                    All Buses
+                </a>
+                <a href="#create-bus"
+                    class="flex items-center py-2 px-3 rounded-lg text-gray-700 hover:bg-gray-100 mb-1">
+                    <i class="fas fa-plus-circle mr-3"></i>
+                    Add New Bus
+                </a>
+            </div>
+
+            <div class="mb-6">
+                <p class="text-xs uppercase text-gray-500 font-semibold mb-2">Admin</p>
+                <a href="#admin-login"
+                    class="flex items-center py-2 px-3 rounded-lg text-gray-700 hover:bg-gray-100 mb-1">
+                    <i class="fas fa-sign-in-alt mr-3"></i>
+                    Login
+                </a>
+                <a href="#admin-signup"
+                    class="flex items-center py-2 px-3 rounded-lg text-gray-700 hover:bg-gray-100 mb-1">
+                    <i class="fas fa-user-plus mr-3"></i>
+                    Create Admin
+                </a>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Mobile header -->
+    <div class="md:hidden bg-white shadow-sm p-4 flex items-center justify-between sticky top-0 z-30">
+        <button id="sidebar-toggle" class="text-gray-700">
+            <i class="fas fa-bars text-xl"></i>
+        </button>
+        <h1 class="text-lg font-bold text-primary">BusTrack Admin</h1>
+        <div class="w-6"></div>
+    </div>
+
+    <!-- Main content -->
+    <div class="md:ml-64 p-4 md:p-6">
+        <!-- Dashboard -->
+        <section id="dashboard">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-dark">Dashboard</h2>
+                <div class="flex items-center space-x-2">
+                    <span class="text-sm text-gray-600">Last updated: <span id="last-updated">Just now</span></span>
+                    <button class="bg-primary text-white p-2 rounded-lg hover:bg-primary-dark">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="bg-white rounded-lg shadow p-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-500">Active Buses</p>
+                            <h3 class="text-2xl font-bold" id="active-buses">5</h3>
+                        </div>
+                        <div class="bg-blue-100 p-3 rounded-full">
+                            <i class="fas fa-bus text-blue-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-500">Total Buses</p>
+                            <h3 class="text-2xl font-bold" id="total-buses">12</h3>
+                        </div>
+                        <div class="bg-green-100 p-3 rounded-full">
+                            <i class="fas fa-clipboard-list text-green-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-500">Admin Users</p>
+                            <h3 class="text-2xl font-bold" id="admin-users">3</h3>
+                        </div>
+                        <div class="bg-purple-100 p-3 rounded-full">
+                            <i class="fas fa-users text-purple-600 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent activity -->
+            <div class="bg-white rounded-lg shadow p-4 mb-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold">Recent Activity</h3>
+                    <button class="text-primary hover:text-primary-dark text-sm">View All</button>
+                </div>
+                <div class="space-y-4">
+                    <div class="flex items-start">
+                        <div class="bg-blue-100 p-2 rounded-full mr-3">
+                            <i class="fas fa-bus text-blue-600"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium">Bus #3 updated its location</p>
+                            <p class="text-sm text-gray-500">2 minutes ago</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start">
+                        <div class="bg-green-100 p-2 rounded-full mr-3">
+                            <i class="fas fa-plus text-green-600"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium">New bus added (Bus #12)</p>
+                            <p class="text-sm text-gray-500">15 minutes ago</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start">
+                        <div class="bg-purple-100 p-2 rounded-full mr-3">
+                            <i class="fas fa-user text-purple-600"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium">New admin user created</p>
+                            <p class="text-sm text-gray-500">1 hour ago</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Live Map Section -->
+        <section id="map-section" class="mb-8">
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+                <div class="p-4 border-b border-gray-200">
+                    <h2 class="text-xl font-bold text-dark">Live Bus Locations</h2>
+                </div>
+                <div class="map-container relative" id="map">
+                    <!-- Bus markers will be added here dynamically -->
+                    <div class="bus-marker" style="top: 30%; left: 40%;" data-bus-id="1"></div>
+                    <div class="bus-marker" style="top: 45%; left: 60%;" data-bus-id="2"></div>
+                    <div class="bus-marker" style="top: 60%; left: 30%;" data-bus-id="3"></div>
+                    <div class="bus-marker" style="top: 25%; left: 70%;" data-bus-id="4"></div>
+                    <div class="bus-marker" style="top: 70%; left: 75%;" data-bus-id="5"></div>
+                </div>
+                <div class="p-4 border-t border-gray-200 flex justify-between items-center">
+                    <div>
+                        <p class="text-sm text-gray-600">Showing <span id="active-buses-map">5</span> active buses</p>
+                    </div>
+                    <button id="refresh-map"
+                        class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-dark flex items-center">
+                        <i class="fas fa-sync-alt mr-2"></i> Refresh
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bus List Section -->
+        <section id="bus-list" class="mb-8">
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+                <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+                    <h2 class="text-xl font-bold text-dark">All Buses</h2>
+                    <button id="refresh-buses"
+                        class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-dark flex items-center">
+                        <i class="fas fa-sync-alt mr-2"></i> Refresh
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    ID</th>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Name</th>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Status</th>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Last Update</th>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Location</th>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="buses-table-body">
+                            <!-- Bus data will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-4 border-t border-gray-200 flex justify-between items-center">
+                    <div>
+                        <p class="text-sm text-gray-600">Showing <span id="showing-buses">1-10</span> of <span
+                                id="total-buses-count">12</span> buses</p>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button class="px-3 py-1 border rounded-lg text-gray-700 hover:bg-gray-100">Previous</button>
+                        <button class="px-3 py-1 border rounded-lg bg-primary text-white">1</button>
+                        <button class="px-3 py-1 border rounded-lg text-gray-700 hover:bg-gray-100">2</button>
+                        <button class="px-3 py-1 border rounded-lg text-gray-700 hover:bg-gray-100">Next</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Create Bus Section -->
+        <section id="create-bus" class="mb-8">
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+                <div class="p-4 border-b border-gray-200">
+                    <h2 class="text-xl font-bold text-dark">Add New Bus</h2>
+                </div>
+                <div class="p-6">
+                    <form id="create-bus-form">
+                        <div class="mb-4">
+                            <label for="bus-name" class="block text-sm font-medium text-gray-700 mb-1">Bus Name</label>
+                            <input type="text" id="bus-name" name="name"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                placeholder="Enter bus name" required>
+                        </div>
+                        <div class="flex justify-end">
+                            <button type="submit"
+                                class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary-dark flex items-center">
+                                <i class="fas fa-plus-circle mr-2"></i> Create Bus
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- Admin Login Section -->
+        <section id="admin-login" class="mb-8">
+            <div class="bg-white rounded-lg shadow overflow-hidden max-w-md mx-auto">
+                <div class="p-4 border-b border-gray-200">
+                    <h2 class="text-xl font-bold text-dark">Admin Login</h2>
+                </div>
+                <div class="p-6">
+                    <form id="login-form">
+                        <div class="mb-4">
+                            <label for="login-email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                            <input type="email" id="login-email" name="email"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                placeholder="admin@example.com" required>
+                        </div>
+                        <div class="mb-4">
+                            <label for="login-password"
+                                class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                            <input type="password" id="login-password" name="password"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                placeholder="********" required>
+                        </div>
+                        <div class="flex justify-end">
+                            <button type="submit"
+                                class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary-dark flex items-center">
+                                <i class="fas fa-sign-in-alt mr-2"></i> Login
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- Admin Signup Section -->
+        <section id="admin-signup" class="mb-8">
+            <div class="bg-white rounded-lg shadow overflow-hidden max-w-md mx-auto">
+                <div class="p-4 border-b border-gray-200">
+                    <h2 class="text-xl font-bold text-dark">Create Admin Account</h2>
+                </div>
+                <div class="p-6">
+                    <form id="signup-form">
+                        <div class="mb-4">
+                            <label for="signup-name" class="block text-sm font-medium text-gray-700 mb-1">Full
+                                Name</label>
+                            <input type="text" id="signup-name" name="name"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                placeholder="John Doe" required>
+                        </div>
+                        <div class="mb-4">
+                            <label for="signup-email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                            <input type="email" id="signup-email" name="email"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                placeholder="admin@example.com" required>
+                        </div>
+                        <div class="mb-4">
+                            <label for="signup-password"
+                                class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                            <input type="password" id="signup-password" name="password"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                placeholder="********" required>
+                            <p class="text-xs text-gray-500 mt-1">Password must be at least 8 characters</p>
+                        </div>
+                        <div class="flex justify-end">
+                            <button type="submit"
+                                class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary-dark flex items-center">
+                                <i class="fas fa-user-plus mr-2"></i> Create Account
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Toast notification -->
+    <div class="toast bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg">
+        <div class="flex items-center">
+            <i class="fas fa-check-circle mr-2"></i>
+            <span id="toast-message">Operation successful</span>
+        </div>
+    </div>
+
+    <!-- Edit Bus Modal -->
+    <div id="edit-bus-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+            <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-lg font-semibold">Edit Bus</h3>
+                <button id="close-edit-modal" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6">
+                <form id="edit-bus-form">
+                    <input type="hidden" id="edit-bus-id">
+                    <div class="mb-4">
+                        <label for="edit-bus-name" class="block text-sm font-medium text-gray-700 mb-1">Bus Name</label>
+                        <input type="text" id="edit-bus-name" name="name"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                            required>
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" id="cancel-edit"
+                            class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100">Cancel</button>
+                        <button type="submit"
+                            class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary-dark">Save
+                            Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+            <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-lg font-semibold">Confirm Deletion</h3>
+                <button id="close-delete-modal" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6">
+                <p class="mb-4">Are you sure you want to delete this bus? This action cannot be undone.</p>
+                <input type="hidden" id="delete-bus-id">
+                <div class="flex justify-end space-x-3">
+                    <button type="button" id="cancel-delete"
+                        class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100">Cancel</button>
+                    <button type="button" id="confirm-delete"
+                        class="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        if (localStorage.getItem('token') === null) {
+            window.location.href = '/admin/login';
+        }
+        // Sample bus data
+        const buses = [
+            { id: 1, name: 'Campus Shuttle', status: 'active', lastUpdate: '2 minutes ago', latitude: '34.794988', longitude: '48.484887' },
+            { id: 2, name: 'Downtown Express', status: 'active', lastUpdate: '5 minutes ago', latitude: '34.800000', longitude: '48.490000' },
+            { id: 3, name: 'North Route', status: 'active', lastUpdate: '1 minute ago', latitude: '34.790000', longitude: '48.480000' },
+            { id: 4, name: 'South Route', status: 'inactive', lastUpdate: '1 hour ago', latitude: '34.785000', longitude: '48.475000' },
+            { id: 5, name: 'East Route', status: 'active', lastUpdate: '3 minutes ago', latitude: '34.795000', longitude: '48.495000' },
+            { id: 6, name: 'West Route', status: 'inactive', lastUpdate: '2 hours ago', latitude: '34.785000', longitude: '48.485000' },
+            { id: 7, name: 'Express 1', status: 'inactive', lastUpdate: '30 minutes ago', latitude: '34.790000', longitude: '48.490000' },
+            { id: 8, name: 'Express 2', status: 'active', lastUpdate: '10 minutes ago', latitude: '34.800000', longitude: '48.480000' },
+            { id: 9, name: 'Night Shuttle', status: 'inactive', lastUpdate: '5 hours ago', latitude: '34.795000', longitude: '48.485000' },
+            { id: 10, name: 'Weekend Special', status: 'active', lastUpdate: '15 minutes ago', latitude: '34.785000', longitude: '48.490000' }
+        ];
+
+
+
+        const host = window.location.host;
+
+        fetch(host + "/busManagement", {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': localStorage.getItem('token')
+            }
+        })
+            .then(res => res.json())
+            .then(dataArray => {
+                if (dataArray !== null && dataArray.length > 0) {
+                    buses = dataArray;
+                }
+                buses.forEach((bus) => {
+                    bus.status = "inactive";
+                });
+            })
+            .catch(error => {
+                console.error("Fetch error:", error);
+            });
+
+        let clientWS;
+
+        function connectWebSocket() {
+            clientWS = new WebSocket("ws://" + host + "/clientws");
+
+            clientWS.onmessage = function (event) {
+                try {
+                    const dataArray = JSON.parse(event.data);
+                    if (dataArray !== null && dataArray.length > 0) {
+                        if (!Array.isArray(dataArray)) throw new Error("Invalid bus data");
+
+                        dataArray.forEach((data) => {
+                            if (!data.bus_id || data.latitude === undefined || data.longitude === undefined) return;
+                            const bus = buses.find(bus => bus.id === data.bus_id);
+                            if (bus) {
+                                bus.latitude = data.latitude;
+                                bus.longitude = data.longitude;
+                                bus.status = "active";
+                            }
+                        });
+                    }
+                } catch (error) {
+                    console.error("WebSocket message error:", error);
+                }
+            };
+
+            clientWS.onclose = function () {
+                setTimeout(connectWebSocket, 5000);
+            };
+        }
+
+        function fetchBusData() {
+            fetch("http://" + host + "/bus")
+                .then(res => res.json())
+                .then(dataArray => {
+                    if (dataArray !== null && dataArray.length > 0) {
+                        if (!Array.isArray(dataArray)) throw new Error("Invalid bus data");
+
+                        dataArray.forEach((data) => {
+                            if (!data.bus_id || data.latitude === undefined || data.longitude === undefined) return;
+                            const bus = buses.find(bus => bus.id === data.bus_id);
+                            if (bus) {
+                                bus.latitude = data.latitude;
+                                bus.longitude = data.longitude;
+                                bus.status = "active";
+                            }
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error("Fetch error:", error);
+                });
+        }
+
+        connectWebSocket();
+        fetchBusData();
+
+        // DOM elements
+        const sidebar = document.querySelector('.sidebar');
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+        const overlay = document.querySelector('.overlay');
+        const toast = document.querySelector('.toast');
+        const busesTableBody = document.getElementById('buses-table-body');
+        const editBusModal = document.getElementById('edit-bus-modal');
+        const deleteModal = document.getElementById('delete-modal');
+
+        // Mobile sidebar toggle
+        sidebarToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+        });
+
+        // Close sidebar when clicking overlay
+        overlay.addEventListener('click', () => {
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+        });
+
+        // Show toast notification
+        function showToast(message, isSuccess = true) {
+            const toastMessage = document.getElementById('toast-message');
+            toastMessage.textContent = message;
+
+            if (isSuccess) {
+                toast.classList.remove('bg-red-500');
+                toast.classList.add('bg-green-500');
+            } else {
+                toast.classList.remove('bg-green-500');
+                toast.classList.add('bg-red-500');
+            }
+
+            toast.classList.add('show');
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Load buses into table
+        function loadBuses() {
+            busesTableBody.innerHTML = '';
+
+            buses.forEach(bus => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50';
+
+                const statusClass = bus.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
+
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${bus.id}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${bus.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                            ${bus.status.charAt(0).toUpperCase() + bus.status.slice(1)}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${bus.lastUpdate}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${bus.latitude}, ${bus.longitude}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="flex space-x-2">
+                            <button class="edit-bus text-blue-600 hover:text-blue-900" data-id="${bus.id}">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="delete-bus text-red-600 hover:text-red-900" data-id="${bus.id}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            <button class="login-bus text-purple-600 hover:text-purple-900" data-id="${bus.id}">
+                                <i class="fas fa-sign-in-alt"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+
+                busesTableBody.appendChild(row);
+            });
+
+            // Add event listeners to edit buttons
+            document.querySelectorAll('.edit-bus').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const busId = e.currentTarget.getAttribute('data-id');
+                    openEditModal(busId);
+                });
+            });
+
+            // Add event listeners to delete buttons
+            document.querySelectorAll('.delete-bus').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const busId = e.currentTarget.getAttribute('data-id');
+                    openDeleteModal(busId);
+                });
+            });
+
+            // Add event listeners to login buttons
+            document.querySelectorAll('.login-bus').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const busId = e.currentTarget.getAttribute('data-id');
+                    loginBus(busId);
+                });
+            });
+        }
+
+        // Open edit modal
+        function openEditModal(busId) {
+            const bus = buses.find(b => b.id == busId);
+            if (bus) {
+                document.getElementById('edit-bus-id').value = bus.id;
+                document.getElementById('edit-bus-name').value = bus.name;
+                editBusModal.classList.remove('hidden');
+            }
+        }
+
+        // Close edit modal
+        function closeEditModal() {
+            editBusModal.classList.add('hidden');
+        }
+
+        // Open delete modal
+        function openDeleteModal(busId) {
+            document.getElementById('delete-bus-id').value = busId;
+            deleteModal.classList.remove('hidden');
+        }
+
+        // Close delete modal
+        function closeDeleteModal() {
+            deleteModal.classList.add('hidden');
+        }
+
+        // Login as bus
+        function loginBus(busId) {
+            // In a real app, this would make an API call to the login endpoint
+            showToast(`Logged in as Bus #${busId}`);
+        }
+
+        // Form submissions
+        document.getElementById('create-bus-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const busName = document.getElementById('bus-name').value;
+
+            // In a real app, this would make an API call to create a new bus
+            showToast(`Bus "${busName}" created successfully`);
+            document.getElementById('bus-name').value = '';
+        });
+
+        document.getElementById('edit-bus-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const busId = document.getElementById('edit-bus-id').value;
+            const busName = document.getElementById('edit-bus-name').value;
+
+            // In a real app, this would make an API call to update the bus
+            showToast(`Bus #${busId} updated to "${busName}"`);
+            closeEditModal();
+            loadBuses();
+        });
+
+        document.getElementById('login-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            // In a real app, this would make an API call to login
+            showToast(`Logged in as ${email}`);
+            document.getElementById('login-email').value = '';
+            document.getElementById('login-password').value = '';
+        });
+
+        document.getElementById('signup-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = document.getElementById('signup-name').value;
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+
+            // In a real app, this would make an API call to create a new admin
+            showToast(`Admin account created for ${name}`);
+            document.getElementById('signup-name').value = '';
+            document.getElementById('signup-email').value = '';
+            document.getElementById('signup-password').value = '';
+        });
+
+        document.getElementById('confirm-delete').addEventListener('click', () => {
+            const busId = document.getElementById('delete-bus-id').value;
+
+            // In a real app, this would make an API call to delete the bus
+            showToast(`Bus #${busId} deleted`);
+            closeDeleteModal();
+            loadBuses();
+        });
+
+        // Modal close buttons
+        document.getElementById('close-edit-modal').addEventListener('click', closeEditModal);
+        document.getElementById('cancel-edit').addEventListener('click', closeEditModal);
+        document.getElementById('close-delete-modal').addEventListener('click', closeDeleteModal);
+        document.getElementById('cancel-delete').addEventListener('click', closeDeleteModal);
+
+        // Refresh buttons
+        document.getElementById('refresh-map').addEventListener('click', () => {
+            showToast('Map refreshed');
+        });
+
+        document.getElementById('refresh-buses').addEventListener('click', () => {
+            showToast('Bus list refreshed');
+            loadBuses();
+        });
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', () => {
+            loadBuses();
+
+            // Update active buses count
+            const activeBuses = buses.filter(bus => bus.status === 'active').length;
+            document.getElementById('active-buses').textContent = activeBuses;
+            document.getElementById('active-buses-map').textContent = activeBuses;
+            document.getElementById('total-buses').textContent = buses.length;
+            document.getElementById('total-buses-count').textContent = buses.length;
+        });
+    </script>
+</body>
+
+</html>
