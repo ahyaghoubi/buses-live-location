@@ -66,6 +66,17 @@ func (admin *Admin) ValidateCredentials() error {
 	return nil
 }
 
+func GetAdminById(adminId int64) (*Admin, error) {
+	var admin Admin
+	query := "SELECT id, name, email FROM admins WHERE id = ?"
+	row := db.DB.QueryRow(query, adminId)
+	err := row.Scan(&admin.ID, &admin.Name, &admin.Email)
+	if err != nil {
+		return nil, err
+	}
+	return &admin, nil
+}
+
 func (admin *Admin) UpdatePassword() error {
 	query := `
 		UPDATE bus

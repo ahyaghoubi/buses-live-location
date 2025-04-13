@@ -43,48 +43,49 @@ func adminLogin(context *gin.Context) {
 	})
 }
 
-// func adminChangePassword(context *gin.Context) {
-// 	var admin models.Admin
-// 	err := context.ShouldBindJSON(&admin)
-// 	if err != nil {
-// 		context.JSON(http.StatusInternalServerError, gin.H{})
-// 	}
+func adminChangePassword(context *gin.Context) {
+	type passwords struct {
+		OldPassword string `json:"old_password"`
+		NewPassword string `json:"new_password"`
+	}
+	var pass passwords
+	err := context.ShouldBindJSON(&pass)
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"message": "The data could not be parsed!",
+		})
+		return
+	}
 
-// 	err = admin.ValidateCredentials()
-// 	if err != nil {
-// 		context.JSON(http.StatusUnauthorized, gin.H{
-// 			"message": "Current password in incorrect",
-// 			"error":   fmt.Sprintf("%v", err),
-// 		})
-// 		return
-// 	}
-// }
+	adminId := context.GetInt64("adminId")
 
-// func adminSignup(context *gin.Context) {
-// 	var admin models.Admin
-// 	err := context.ShouldBindJSON(&admin)
-// 	if err != nil {
-// 		context.JSON(http.StatusInternalServerError, gin.H{
-// 			"message": "The data could not be parsed!",
-// 		})
-// 		return
-// 	}
+	admin, err := models.GetAdminById(adminId)
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Could not find the admin!",
+		})
+		return
+	}
 
-// 	if admin.Email == "" || admin.Name == "" || admin.Password == "" {
-// 		context.JSON(http.StatusBadRequest, gin.H{
-// 			"message": "Name or email or password",
-// 		})
-// 	}
+	passwordIsValid := utils.ComparePassword(pass.OldPassword, admin.Password)
 
-// 	err = admin.Create()
-// 	if err != nil {
-// 		context.JSON(http.StatusInternalServerError, gin.H{
-// 			"message": "Something went wrong!",
-// 		})
-// 		return
-// 	}
+	if !passwordIsValid {
+		context.JSON(http.StatusUnauthorized, gin.H{
+			"message": "Old password is incorrect!",
+		})
+		return
+	}
 
-// 	context.JSON(http.StatusCreated, gin.H{
-// 		"message": "Admin created.",
-// 	})
-// }
+	admin.Password = pass.NewPassword
+	err = admin.UpdatePassword()
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Could not update password!",
+		})
+		return
+	}
+
+	context.JSON(http.StatusOK, gin.H{
+		"message": "Password updated successfully!",
+	})
+}

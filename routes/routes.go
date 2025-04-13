@@ -15,6 +15,7 @@ func RegisterRoutes(server *gin.Engine) {
 	adminAuthenticated.PATCH("/:id", updateBus)
 	adminAuthenticated.DELETE("/:id", deleteBus)
 	adminAuthenticated.POST("/login/:id", busLogin)
+	adminAuthenticated.POST("/changePassword/", adminChangePassword)
 
 	server.GET("/bus", getAllActiveBuses)
 	server.GET("/clientws", ClientsWSHandler)
